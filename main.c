@@ -2,7 +2,7 @@
 #include<stdlib.h>
 
 #define STRING_MAX_LENGTH 30
-#define BLOCK_MAX_SIZE 30
+#define BLOCK_MAX_SIZE 50
 
 typedef struct S{
    char id[STRING_MAX_LENGTH];
