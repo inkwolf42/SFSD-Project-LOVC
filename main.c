@@ -41,6 +41,11 @@ void SetHeader(FILE *f,THeader *h){
 }
 
 
+
+int sizeOfRecord(TStudent *s){
+   return strlen(s->Fname)+strlen(s->Lname)+5+strlen(s->id)+(s->group>=100?3:(s->group>=10?2:1))+5;
+}
+
 int WriteDir(FILE *f,TBlock b,int index,int offset){
    if(b.val==NULL)return 0;
    fseek(f,(index*BLOCK_MAX_SIZE)+sizeof(THeader)+offset,SEEK_SET);
@@ -243,6 +248,8 @@ int FindTheSpot(FILE *f,char fname[STRING_MAX_LENGTH],int *r){
       while(b.val!=NULL && *r<h.NumberOfRecordes){
          if(prev!=NULL && strcmp(prev->Fname,fname)<0 && strcmp(fname,b.val->Fname)<0){
             return pb-1;
+         }else if(prev!=NULL && strcmp(fname,b.val->Fname)<0){
+            return 0;
          }
          (*r)++;
          TStudent *tmp = prev;
@@ -252,14 +259,73 @@ int FindTheSpot(FILE *f,char fname[STRING_MAX_LENGTH],int *r){
          free(tmp);
       }
    }
-   return -1;
+   (*r)--;
+   return pb-1;
 }
 
 
-void Insert(FILE *f,TStudent s){
+
+void Insert(FILE *f,TStudent *s){
    int a;
-   int b = FindTheSpot(f,s.Fname,&a);
-   
+   int bi = FindTheSpot(f,s->Fname,&a);
+   printf("%d,%d\n",bi,a);
+   THeader h = Header(f);
+   int blocks = 0;
+   TBlock b,buf={NULL,NULL,0,0};
+   int offset = 0;
+   int r = 0,j = 0;
+   int chars = 0;
+   TStudent *p=NULL;
+   int dd = 0;
+   THeader header={0,0};
+   while(blocks<h.NumberOfBlocks && r<h.NumberOfRecordes){
+      b = ReadDirNoOffset(f,blocks);
+      blocks++;
+      j=0;
+      while(b.val!=NULL && r<h.NumberOfRecordes){
+         printf("%d,%d\n",blocks,j);
+         j++;
+         if(dd==0 && blocks==bi+1 && j==a){
+
+            if(buf.val==NULL){
+               buf.val = s;
+               p=s;
+               header.NumberOfRecordes++;
+            }else{
+               p->next = s;
+               p=s;
+               header.NumberOfRecordes++;
+            }
+            chars+=sizeOfRecord(s);
+            if(chars>=BLOCK_MAX_SIZE){
+               offset = WriteDir(f,buf,header.NumberOfBlocks,offset);
+               header.NumberOfBlocks++;
+            }
+            dd=1;
+            continue;
+         }
+         if(buf.val==NULL){
+            buf.val = b.val;
+            p=b.val;
+            header.NumberOfRecordes++;
+         }else{
+            p->next = b.val;
+            p=b.val;
+            header.NumberOfRecordes++;
+         }
+         chars+=sizeOfRecord(b.val);
+         if(chars>=BLOCK_MAX_SIZE){
+            offset = WriteDir(f,buf,header.NumberOfBlocks,offset);
+            header.NumberOfBlocks++;
+         }
+         r++;
+         b.val = b.val->next;
+      }
+   }
+   if(buf.val!=NULL){
+      offset = WriteDir(f,buf,header.NumberOfBlocks,offset);
+      SetHeader(f,&header);
+   }
    
 }
 
@@ -334,12 +400,13 @@ int main(){
    init(f);
    /*int a = 0;*/
    /*TStudent s = *createStudent(&a,"Test","Mahmoud","Benyoucef",2,10.0);*/
-   /*Insert(f,s);*/
-
    fclose(f);
-   f = fopen("test.txt","r");
+   f = fopen("test.txt","r+");
+   TStudent newS = {"Id_069","Mahmoud","Benyoucef",2,10,NULL};
+   display(&newS);
+   Insert(f,&newS);
    PrintAll(f);
-   char Fid[STRING_MAX_LENGTH] = "Mab"; 
+   char Fid[STRING_MAX_LENGTH] = "Mahmoud"; 
    printf("\nthe Student that has id '%s' is : \n\n",Fid);
    int i = 0;
    int bi = FindTheSpot(f,Fid,&i);
