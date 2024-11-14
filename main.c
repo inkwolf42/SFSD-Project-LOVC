@@ -137,12 +137,14 @@ TBlock ReadDirNoOffset(FILE *f,int index ){
 }
 
 
-char names[5][STRING_MAX_LENGTH]={
-   "Hello",
-   "World",
-   "AAA",
-   "D",
-   "OvO"
+char names[7][STRING_MAX_LENGTH]={
+   "Amar",
+   "Benyoucef",
+   "Dio",
+   "Maan",
+   "Mahmoud",
+   "Salah",
+   "Zoro"
 };
 
 TStudent* createStudent(int *s,char id[STRING_MAX_LENGTH],char Fname[STRING_MAX_LENGTH],char Lname[STRING_MAX_LENGTH],int group,float note){
@@ -163,15 +165,17 @@ int searchId(FILE *f,char id[STRING_MAX_LENGTH],int *i){
    THeader h = Header(f);
    int min = 0;
    int max = h.NumberOfBlocks-1;
+   printf("%d,%d\n",min,max);
    int found = -1;
    char minID[STRING_MAX_LENGTH];
-   while(found==-1 && min<max){
+   while(found==-1 && min<=max){
       int mid = (min+max)/2;
       TBlock b = ReadDirNoOffset(f,mid);
       *i=0;
       if(b.val!=NULL){
          strcpy(minID,b.val->id);
          while(b.val!=NULL){
+            printf("%s\n",b.val->id);
             if(strcmp(id,b.val->id)==0){
                printf("ID : %s\n",b.val->id);
                return mid;
@@ -198,7 +202,7 @@ int search(FILE *f,char fname[STRING_MAX_LENGTH],int *i){
    int max = h.NumberOfBlocks-1;
    int found = -1;
    char minID[STRING_MAX_LENGTH];
-   while(found==-1 && min<max){
+   while(found==-1 && min<=max){
       int mid = (min+max)/2;
       TBlock b = ReadDirNoOffset(f,mid);
       *i=0;
@@ -225,20 +229,46 @@ int search(FILE *f,char fname[STRING_MAX_LENGTH],int *i){
    return found;
 }
 
-void Insert(FILE *f,TStudent s){
+int FindTheSpot(FILE *f,char fname[STRING_MAX_LENGTH],int *r){
    THeader h = Header(f);
-
-   TBlock b = ReadDirNoOffset(f,h.NumberOfBlocks-1);
-   if(b.nc>=BLOCK_MAX_SIZE){
-      h.NumberOfBlocks++;
-      b.val = &s;
-      b.length = 1;
-      b.nc -= BLOCK_MAX_SIZE;
-      WriteDir(f,b,h.NumberOfBlocks-1,b.nc);
-   }else{
-      WriteDir(f,b,h.NumberOfBlocks-1,0);
-   } 
    
+   int blocks = 0;
+   TBlock b;
+   TStudent *prev=NULL;
+   int pb = 0;
+   while(blocks<h.NumberOfBlocks && *r<h.NumberOfRecordes){
+      b = ReadDirNoOffset(f,blocks);
+      blocks++;
+      (*r)=0;
+      while(b.val!=NULL && *r<h.NumberOfRecordes){
+         if(prev!=NULL && strcmp(prev->Fname,fname)<0 && strcmp(fname,b.val->Fname)<0){
+            return pb-1;
+         }
+         (*r)++;
+         TStudent *tmp = prev;
+         prev = b.val;
+         pb=blocks;
+         b.val = b.val->next;
+         free(tmp);
+      }
+   }
+   return -1;
+}
+
+
+void Insert(FILE *f,TStudent s){
+   int a;
+   int b = FindTheSpot(f,s.Fname,&a);
+   
+   
+}
+
+void Delete(FILE *f , char id[STRING_MAX_LENGTH]){
+   int a;
+   int bi = searchId(f,id,&a);
+   if(bi!=-1){
+      TBlock b = ReadDirNoOffset(f,bi);
+   }
 }
 
 void init(FILE *f){
@@ -246,7 +276,7 @@ void init(FILE *f){
    TBlock b={NULL,NULL,0,0};
    int of = 0;
    TStudent *p = NULL;
-   for(int i = 0 ; i<50 ; i++){
+   for(int i = 0 ; i<7 ; i++){
       if(b.nc>BLOCK_MAX_SIZE){
          of = WriteDir(f,b,h.NumberOfBlocks,of);
          h.NumberOfRecordes+=b.length;
@@ -258,10 +288,10 @@ void init(FILE *f){
       char id[STRING_MAX_LENGTH];
       sprintf(id,"Id_%03d",i);
       if(b.val==NULL){
-         b.val = createStudent(&b.nc,id,names[i%5],names[(i+1)%5],1,(7*i%80)/4.0);
+         b.val = createStudent(&b.nc,id,names[i%7],names[(i+1)%7],1,(7*i%80)/4.0);
          p=b.val;
       }else{
-         p->next = createStudent(&b.nc,id,names[i%5],names[(i+1)%5],1,(7*i%80)/4.0);
+         p->next = createStudent(&b.nc,id,names[i%7],names[(i+1)%7],1,(7*i%80)/4.0);
          p=p->next;
       }
       b.length++;
@@ -282,13 +312,11 @@ void PrintAll(FILE *f){
    printf("\n%d\n",h.NumberOfBlocks);
    printf("\n%d\n",h.NumberOfRecordes);
    int blocks = 0;
-   int offset = 0;
    TBlock b;
    int r = 0;
    while(blocks<h.NumberOfBlocks && r<h.NumberOfRecordes){
       b = ReadDirNoOffset(f,blocks);
       blocks++;
-      offset = b.nc-BLOCK_MAX_SIZE;
       while(b.val!=NULL && r<h.NumberOfRecordes){
          display(b.val);
          r++;
@@ -311,17 +339,19 @@ int main(){
    fclose(f);
    f = fopen("test.txt","r");
    PrintAll(f);
-   char Fid[STRING_MAX_LENGTH] = "World"; 
+   char Fid[STRING_MAX_LENGTH] = "Mab"; 
    printf("\nthe Student that has id '%s' is : \n\n",Fid);
    int i = 0;
-   int bi = search(f,Fid,&i);
-   TBlock b = ReadDirNoOffset(f,bi);
+   int bi = FindTheSpot(f,Fid,&i);
    printf("%d,%d\n",bi,i);
-   while(i>0){
-      i--;
-      b.val = b.val->next;
+   if(bi!=-1){
+      TBlock b = ReadDirNoOffset(f,bi);
+      printf("%d,%d\n",bi,i);
+      while(i>0){
+         i--;
+         b.val = b.val->next;
+      }
+      display(b.val);
    }
-   display(b.val);
-
    return 0;
 }
