@@ -238,9 +238,11 @@ int FindTheSpot(FILE *f,char fname[STRING_MAX_LENGTH],int *r){
    THeader h = Header(f);
    
    int blocks = 0;
-   TBlock b;
+   TBlock b = ReadDirNoOffset(f,0);
    TStudent *prev=NULL;
    int pb = 0;
+   (*r)=0;
+   if((b.val==NULL)||(strcmp(b.val->Fname,fname)>0))return 0;
    while(blocks<h.NumberOfBlocks && *r<h.NumberOfRecordes){
       b = ReadDirNoOffset(f,blocks);
       blocks++;
@@ -248,8 +250,6 @@ int FindTheSpot(FILE *f,char fname[STRING_MAX_LENGTH],int *r){
       while(b.val!=NULL && *r<h.NumberOfRecordes){
          if(prev!=NULL && strcmp(prev->Fname,fname)<0 && strcmp(fname,b.val->Fname)<0){
             return pb-1;
-         }else if(prev!=NULL && strcmp(fname,b.val->Fname)<0){
-            return 0;
          }
          (*r)++;
          TStudent *tmp = prev;
@@ -260,15 +260,25 @@ int FindTheSpot(FILE *f,char fname[STRING_MAX_LENGTH],int *r){
       }
    }
    (*r)--;
-   return pb-1;
+   return pb;
+}
+
+void clearBlock(TBlock *b){
+   TStudent *tmp;
+   b->val=NULL;
+   return;
+   while (b->val!=NULL) {
+      tmp = b->val;
+      b->val=b->val->next;
+      free(tmp);
+   }
 }
 
 
 
 void Insert(FILE *f,TStudent *s){
-   int a;
+   int a=0;
    int bi = FindTheSpot(f,s->Fname,&a);
-   printf("%d,%d\n",bi,a);
    THeader h = Header(f);
    int blocks = 0;
    TBlock b,buf={NULL,NULL,0,0};
@@ -283,8 +293,7 @@ void Insert(FILE *f,TStudent *s){
       blocks++;
       j=0;
       while(b.val!=NULL && r<h.NumberOfRecordes){
-         printf("%d,%d\n",blocks,j);
-         j++;
+         printf("%03d!!\n",r);
          if(dd==0 && blocks==bi+1 && j==a){
 
             if(buf.val==NULL){
@@ -299,6 +308,10 @@ void Insert(FILE *f,TStudent *s){
             chars+=sizeOfRecord(s);
             if(chars>=BLOCK_MAX_SIZE){
                offset = WriteDir(f,buf,header.NumberOfBlocks,offset);
+               buf.val=NULL;
+               p=NULL;
+               chars=offset;
+               /*clearBlock(&buf);*/
                header.NumberOfBlocks++;
             }
             dd=1;
@@ -307,34 +320,106 @@ void Insert(FILE *f,TStudent *s){
          if(buf.val==NULL){
             buf.val = b.val;
             p=b.val;
+            b.val = b.val->next;
+            p->next=NULL;
             header.NumberOfRecordes++;
          }else{
             p->next = b.val;
             p=b.val;
+            b.val = b.val->next;
+            p->next=NULL;
             header.NumberOfRecordes++;
          }
-         chars+=sizeOfRecord(b.val);
+         printf("Added %d\n",r);
+         chars+=sizeOfRecord(p);
          if(chars>=BLOCK_MAX_SIZE){
             offset = WriteDir(f,buf,header.NumberOfBlocks,offset);
+            chars=offset;
+            buf.val=NULL;
+            p=NULL;
+            /*clearBlock(&buf);*/
             header.NumberOfBlocks++;
          }
+         j++;
          r++;
-         b.val = b.val->next;
+      }
+      printf("Finshed %d\n",blocks);
+   }
+   printf("Finshed\n");
+   if(dd==0){
+      if(buf.val==NULL){
+         buf.val = s;
+         p=buf.val;
+         header.NumberOfRecordes++;
+      }else{
+         p->next = s;
+         p=p->next;
+         header.NumberOfRecordes++;
+      }
+      chars+=sizeOfRecord(s);
+      if(chars>=BLOCK_MAX_SIZE){
+         offset = WriteDir(f,buf,header.NumberOfBlocks,offset);
+         clearBlock(&buf);
+         header.NumberOfBlocks++;
       }
    }
    if(buf.val!=NULL){
       offset = WriteDir(f,buf,header.NumberOfBlocks,offset);
-      SetHeader(f,&header);
    }
+   header.NumberOfBlocks++;
+   SetHeader(f,&header);
    
 }
 
 void Delete(FILE *f , char id[STRING_MAX_LENGTH]){
-   int a;
+   int a=0;
    int bi = searchId(f,id,&a);
-   if(bi!=-1){
-      TBlock b = ReadDirNoOffset(f,bi);
+   printf("Pos : %d,%d\n",bi,a);
+   THeader h = Header(f);
+   int blocks = 0;
+   printf("BR : %d,%d\n",h.NumberOfBlocks,h.NumberOfRecordes);
+   TBlock b,buf={NULL,NULL,0,0};
+   int offset = 0;
+   int r = 0,j = 0;
+   int chars = 0;
+   TStudent *p=NULL;
+   THeader header={1,0};
+   while(blocks<h.NumberOfBlocks && r<h.NumberOfRecordes){
+      b = ReadDirNoOffset(f,blocks);
+      blocks++;
+      j=0;
+      while(b.val!=NULL && r<h.NumberOfRecordes){
+         if(b.val!=NULL && (j!=a || blocks!=bi+1)){
+            if(buf.val==NULL){
+               buf.val = b.val;
+               p=b.val;
+               b.val = b.val->next;
+               p->next=NULL;
+               header.NumberOfRecordes++;
+            }else{
+               p->next = b.val;
+               p=b.val;
+               b.val = b.val->next;
+               p->next=NULL;
+               header.NumberOfRecordes++;
+            }
+            chars+=sizeOfRecord(b.val);
+            if(chars>=BLOCK_MAX_SIZE){
+               offset = WriteDir(f,buf,header.NumberOfBlocks,offset);
+               clearBlock(&buf);
+               header.NumberOfBlocks++;
+            }
+         }else{
+            b.val=b.val->next;
+         }
+         j++;
+         r++;
+      }
    }
+   if(buf.val!=NULL){
+      offset = WriteDir(f,buf,header.NumberOfBlocks-1,offset);
+   }
+   SetHeader(f,&header);
 }
 
 void init(FILE *f){
@@ -352,7 +437,7 @@ void init(FILE *f){
          b.nc = of;
       }
       char id[STRING_MAX_LENGTH];
-      sprintf(id,"Id_%03d",i);
+      snprintf(id,STRING_MAX_LENGTH,"Id_%03d",i);
       if(b.val==NULL){
          b.val = createStudent(&b.nc,id,names[i%7],names[(i+1)%7],1,(7*i%80)/4.0);
          p=b.val;
@@ -365,7 +450,6 @@ void init(FILE *f){
    WriteDir(f,b,h.NumberOfBlocks,of);
    h.NumberOfRecordes+=b.length;
    h.NumberOfBlocks++;
-   printf("Records : %d\nBlocks : %d\n%d\n",h.NumberOfRecordes,h.NumberOfBlocks,b.nc);
    SetHeader(f,&h);
 }
 
@@ -375,8 +459,8 @@ void display(TStudent *s){
 
 void PrintAll(FILE *f){
    THeader h = Header(f);
-   printf("\n%d\n",h.NumberOfBlocks);
-   printf("\n%d\n",h.NumberOfRecordes);
+   printf("\nBlocks : %d\n",h.NumberOfBlocks);
+   printf("\nRecords : %d\n",h.NumberOfRecordes);
    int blocks = 0;
    TBlock b;
    int r = 0;
@@ -394,6 +478,26 @@ void PrintAll(FILE *f){
 }
 
 
+void PrintWithGroup(FILE *f,int g){
+   THeader h = Header(f);
+   printf("\nBlocks : %d\n",h.NumberOfBlocks);
+   printf("\nRecords : %d\n",h.NumberOfRecordes);
+   int blocks = 0;
+   TBlock b;
+   int r = 0;
+   while(blocks<h.NumberOfBlocks && r<h.NumberOfRecordes){
+      b = ReadDirNoOffset(f,blocks);
+      blocks++;
+      while(b.val!=NULL && r<h.NumberOfRecordes){
+         if(g==b.val->group)display(b.val);
+         r++;
+         TStudent *tmp = b.val;
+         b.val = b.val->next;
+         free(tmp);
+      }
+   }
+}
+
 int main(){
    FILE *f = fopen("test.txt","w");
    
@@ -402,23 +506,18 @@ int main(){
    /*TStudent s = *createStudent(&a,"Test","Mahmoud","Benyoucef",2,10.0);*/
    fclose(f);
    f = fopen("test.txt","r+");
+   Delete(f,"Id_004");
    TStudent newS = {"Id_069","Mahmoud","Benyoucef",2,10,NULL};
-   display(&newS);
    Insert(f,&newS);
+   TStudent new2 = {"Id_-01","Aaa","Benyoucef",2,10,NULL};
+   Insert(f,&new2);
+   TStudent newT = {"Id_T-T","Test","Benyoucef",2,10,NULL};
+   Insert(f,&newT);
+   TStudent new3 = {"Id_999","Zzz","Benyoucef",2,10,NULL};
+   Insert(f,&new3);
    PrintAll(f);
-   char Fid[STRING_MAX_LENGTH] = "Mahmoud"; 
-   printf("\nthe Student that has id '%s' is : \n\n",Fid);
-   int i = 0;
-   int bi = FindTheSpot(f,Fid,&i);
-   printf("%d,%d\n",bi,i);
-   if(bi!=-1){
-      TBlock b = ReadDirNoOffset(f,bi);
-      printf("%d,%d\n",bi,i);
-      while(i>0){
-         i--;
-         b.val = b.val->next;
-      }
-      display(b.val);
-   }
+   printf("**************************");
+   PrintWithGroup(f,2);
+   fclose(f);
    return 0;
 }
