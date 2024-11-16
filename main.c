@@ -27,6 +27,7 @@ typedef struct node{
 typedef struct{
    int NumberOfBlocks;
    int NumberOfRecordes;
+   int curId;
 }THeader;
 
 
@@ -184,11 +185,10 @@ int searchId(FILE *f,char id[STRING_MAX_LENGTH],int *r){
    (*r)=0;
    while(blocks<h.NumberOfBlocks && *r<h.NumberOfRecordes){
       b = ReadDirNoOffset(f,blocks);
-      blocks++;
       (*r)=0;
-      while(b.val!=NULL && *r<h.NumberOfRecordes){
+      while(b.val!=NULL && (*r)<h.NumberOfRecordes){
          if(strcmp(b.val->id,id)==0){
-            return pb-1;
+            return pb;
          }
          (*r)++;
          TStudent *tmp = b.val;
@@ -196,6 +196,7 @@ int searchId(FILE *f,char id[STRING_MAX_LENGTH],int *r){
          b.val = b.val->next;
          free(tmp);
       }
+      blocks++;
    }
    (*r)--;
    return -1;
@@ -289,7 +290,7 @@ void Insert(FILE *f,TStudent *s){
    int chars = 0;
    TStudent *p=NULL;
    int dd = 0;
-   THeader header={0,0};
+   THeader header={0,0,h.curId+1};
    while(blocks<h.NumberOfBlocks && r<h.NumberOfRecordes){
       b = ReadDirNoOffset(f,blocks);
       blocks++;
@@ -378,7 +379,7 @@ void Delete(FILE *f , char id[STRING_MAX_LENGTH]){
    int r = 0,j = 0;
    int chars = 0;
    TStudent *p=NULL;
-   THeader header={1,0};
+   THeader header={1,0,h.curId};
    while(blocks<h.NumberOfBlocks && r<h.NumberOfRecordes){
       b = ReadDirNoOffset(f,blocks);
       blocks++;
@@ -420,7 +421,7 @@ void Delete(FILE *f , char id[STRING_MAX_LENGTH]){
 
 //Put some starting data
 void init(FILE *f){
-   THeader h = {0,0};
+   THeader h = {0,0,7};
    TBlock b={NULL,NULL,0,0};
    int of = 0;
    TStudent *p = NULL;
@@ -444,6 +445,23 @@ void init(FILE *f){
       }
       b.length++;
    }
+   WriteDir(f,b,h.NumberOfBlocks,of);
+   h.NumberOfRecordes+=b.length;
+   h.NumberOfBlocks++;
+   SetHeader(f,&h);
+}
+
+//Put the First data
+void initFirst(FILE *f,TStudent *s){
+   THeader h = {0,0,1};
+   TBlock b={NULL,NULL,0,0};
+   int of = 0;
+   TStudent *p = NULL;
+
+   b.val = s;
+   p=b.val;
+   b.length++;
+   
    WriteDir(f,b,h.NumberOfBlocks,of);
    h.NumberOfRecordes+=b.length;
    h.NumberOfBlocks++;
@@ -493,25 +511,144 @@ void PrintWithGroup(FILE *f,int g){
    }
 }
 
+//Function To ask the user to select one of the options
+void ask(int *a){
+   printf("\nSelect an option :\n");
+   printf("\t0) exit\n");
+   printf("\t1) Display all students\n");
+   printf("\t2) Display all students in specific group\n");
+   printf("\t3) Search for specific Student with ID\n");
+   printf("\t4) Search for specific Student with First Name\n");
+   printf("\t5) Insert a new student\n");
+   printf("\t6) Delete a student via Id\n");
+   printf("\n> ");
+   scanf("%d",a);
+}
+
+//Helper Function to ask the use for a Int Value
+int AskInt(char stmt[50]){
+   int r;
+   printf("%s\n\t> ",stmt);
+   scanf("%d",&r);
+   system("clear");
+   return r;
+}
+
+//Helper Function to ask the use for a Float Value
+int AskFloat(char stmt[50]){
+   float r;
+   printf("%s\n\t> ",stmt);
+   scanf("%f",&r);
+   system("clear");
+   return r;
+}
+
+//Helper Function to ask the use for a String Value
+void AskString(char stmt[50],char r[STRING_MAX_LENGTH]){
+   printf("%s\n\t> ",stmt);
+   scanf("%s",r);
+   system("clear");
+}
+
 int main(){
-   FILE *f = fopen("test.txt","w");
+   FILE *f = fopen("test.txt","r+");
+   int newF = 0;
+   //This will be used to check if the file opened or created
+   if(f==NULL){
+      f = fopen("test.txt","w+");
+      newF = 1;
+   }
+   int run = 1;
+   //Variables to store user inputs
+   int ans,h,bi;
+   char Cans[STRING_MAX_LENGTH];
+   TStudent snew = {"","","",0,0,NULL};
+   THeader header;
+   //Clear the first time to look better
+   system("clear");
+   while(run){
+      //Ask the user to select an option
+      ask(&ans);
+      //clear the previos Question
+      system("clear");
+      //see witch option the user choese
+      switch (ans) {
+         //exit
+         case 0:
+            run=0;
+            break;
+         //Print all student
+         case 1:
+            PrintAll(f);
+            break;
+         //Print all student in a specific group
+         case 2:
+            PrintWithGroup(f,AskInt("Enter The Group Number:"));
+            break;
+         //Print specific student via Id
+         case 3:
+            AskString("Enter The Id:",Cans);
+            h=0;
+            bi = searchId(f,Cans,&h);
+            printf("\nb : %d,r : %d\n",bi,h);
+            if(bi==-1){
+               printf("No Student with that ID!\n");
+            }else{
+               TBlock block = ReadDirNoOffset(f,bi);
+               while(h>0){
+                  block.val=block.val->next;
+                  h--;
+               }
+               display(block.val);
+            }
+            break;
+         //Print specific student via First name
+         case 4:
+            AskString("Enter First Name:",Cans);
+            h=0;
+            bi = search(f,Cans,&h);
+            if(bi==-1){
+               printf("No Student with that Name!\n");
+            }else{
+               TBlock block = ReadDirNoOffset(f,bi);
+               while(h>0)block.val=block.val->next;
+               display(block.val);
+            }
+            break;
+         //Create and Insert a new student
+         case 5:
+            header = Header(f);
+            AskString("Enter The First Name :",snew.Fname);
+            AskString("Enter The Last Name :",snew.Lname);
+            snew.group=AskInt("Enter Group Number:");
+            snew.Note=AskFloat("Enter Note:");
+            snew.next=NULL;
+            if(newF==0){
+               snprintf(snew.id,STRING_MAX_LENGTH,"Id_%03d",header.curId);
+               Insert(f,&snew);
+            }else{
+               snprintf(snew.id,STRING_MAX_LENGTH,"Id_000");
+               initFirst(f,&snew);
+            }
+            break;
+         //Delete an Student via Id
+         case 6:
+            AskString("Enter The Id:",Cans);
+            h=0;
+            bi = searchId(f,Cans,&h);
+            if(bi==-1){
+               printf("No Student with that ID!\n");
+            }else{
+               Delete(f,Cans);
+            }
+            break;
+         //The Input is not valid
+         default:
+            printf("Invalid Option!!\n");
+      }
+   }
    
-   init(f);
-   /*int a = 0;*/
-   /*TStudent s = *createStudent(&a,"Test","Mahmoud","Benyoucef",2,10.0);*/
-   fclose(f);
-   f = fopen("test.txt","r+");
-   Delete(f,"Id_004");
-   TStudent newS = {"Id_069","Mahmoud","Benyoucef",2,10,NULL};
-   Insert(f,&newS);
-   TStudent new2 = {"Id_-01","Aaa","Benyoucef",2,10,NULL};
-   Insert(f,&new2);
-   TStudent newT = {"Id_T-T","Test","Benyoucef",2,10,NULL};
-   Insert(f,&newT);
-   TStudent new3 = {"Id_999","Zzz","Benyoucef",2,10,NULL};
-   Insert(f,&new3);
-   PrintAll(f);
-   PrintWithGroup(f,2);
+   //Close the File
    fclose(f);
    return 0;
 }
