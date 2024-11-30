@@ -528,13 +528,15 @@ void AskString(char stmt[50],char r[STRING_MAX_LENGTH]){
    system("clear");
 }
 
+//The main function
 int main(){
+
    //open file if it exist
    FILE *f = fopen("test.txt","r+");
    int newF = 0;
    
    //This will be used to check if the file opened or created
-   if(f==NULL || 1){
+   if(f==NULL){
       f = fopen("test.txt","w+");
       init(f);
       newF = 1;
@@ -658,3 +660,6 @@ int main(){
    fclose(f);
    return 0;
 }
+
+
+//END
