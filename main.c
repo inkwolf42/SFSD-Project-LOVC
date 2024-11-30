@@ -149,17 +149,6 @@ TBlock ReadDirNoOffset(FILE *f,int index ){
    return b;
 }
 
-//Placeholder Names
-char names[7][STRING_MAX_LENGTH]={
-   "Amar",
-   "Benyoucef",
-   "Dio",
-   "Maan",
-   "Mahmoud",
-   "Salah",
-   "Zoro"
-};
-
 //Function to create a Student
 TStudent* createStudent(int *s,char id[STRING_MAX_LENGTH],char Fname[STRING_MAX_LENGTH],char Lname[STRING_MAX_LENGTH],int group,float note){
    TStudent *st = (TStudent *) malloc(sizeof(TStudent));
@@ -291,8 +280,8 @@ void Insert(FILE *f,TStudent *s){
    TStudent *p=NULL;
    int dd = 0;
    THeader header={0,0,h.curId+1};
+   b = ReadDirNoOffset(f,blocks);
    while(blocks<h.NumberOfBlocks && r<h.NumberOfRecordes){
-      b = ReadDirNoOffset(f,blocks);
       blocks++;
       j=0;
       while(b.val!=NULL && r<h.NumberOfRecordes){
@@ -342,7 +331,10 @@ void Insert(FILE *f,TStudent *s){
          j++;
          r++;
       }
+      b = ReadDirNoOffset(f,blocks);
    }
+   
+
    if(dd==0){
       if(buf.val==NULL){
          buf.val = s;
@@ -421,34 +413,20 @@ void Delete(FILE *f , char id[STRING_MAX_LENGTH]){
 
 //Put some starting data
 void init(FILE *f){
-   THeader h = {0,0,7};
-   TBlock b={NULL,NULL,0,0};
-   int of = 0;
-   TStudent *p = NULL;
-   for(int i = 0 ; i<7 ; i++){
-      if(b.nc>BLOCK_MAX_SIZE){
-         of = WriteDir(f,b,h.NumberOfBlocks,of);
-         h.NumberOfRecordes+=b.length;
-         h.NumberOfBlocks++;
-         b.length=0;
-         b.val=NULL;
-         b.nc = of;
-      }
-      char id[STRING_MAX_LENGTH];
-      snprintf(id,STRING_MAX_LENGTH,"Id_%03d",i);
-      if(b.val==NULL){
-         b.val = createStudent(&b.nc,id,names[i%7],names[(i+1)%7],1,(7*i%80)/4.0);
-         p=b.val;
-      }else{
-         p->next = createStudent(&b.nc,id,names[i%7],names[(i+1)%7],1,(7*i%80)/4.0);
-         p=p->next;
-      }
-      b.length++;
-   }
-   WriteDir(f,b,h.NumberOfBlocks,of);
-   h.NumberOfRecordes+=b.length;
-   h.NumberOfBlocks++;
+   THeader h = {0,0,0};
    SetHeader(f,&h);
+   TStudent p;
+   for(int i = 15 ; i>=0 ; i--){
+      
+      snprintf(p.id,STRING_MAX_LENGTH,"Id_%03d",i);
+      snprintf(p.Fname,STRING_MAX_LENGTH,"Name%03d",15-i);
+      snprintf(p.Lname,STRING_MAX_LENGTH,"SOm%03d",i);
+      p.Note=10;
+      p.group=5;
+      
+      Insert(f,&p);
+      
+   }
 }
 
 //Put the First data
@@ -551,43 +529,67 @@ void AskString(char stmt[50],char r[STRING_MAX_LENGTH]){
 }
 
 int main(){
+   //open file if it exist
    FILE *f = fopen("test.txt","r+");
    int newF = 0;
+   
    //This will be used to check if the file opened or created
-   if(f==NULL){
+   if(f==NULL || 1){
       f = fopen("test.txt","w+");
+      init(f);
       newF = 1;
    }
    int run = 1;
+   
    //Variables to store user inputs
    int ans,h,bi;
    char Cans[STRING_MAX_LENGTH];
    TStudent snew = {"","","",0,0,NULL};
    THeader header;
+
+   //Store the Questions used here 
+   char Questions[8][50]={
+      "Enter The Group Number:",
+      "Enter The Id:",
+      "Enter First Name:",
+      "Enter The First Name :",
+      "Enter The Last Name :",
+      "Enter Group Number:",
+      "Enter Note:",
+      "Enter The Id:"
+   };
+
    //Clear the first time to look better
    system("clear");
    while(run){
+
       //Ask the user to select an option
       ask(&ans);
+
       //clear the previos Question
       system("clear");
+
       //see witch option the user choese
       switch (ans) {
+
          //exit
          case 0:
             run=0;
             break;
+
          //Print all student
          case 1:
             PrintAll(f);
             break;
+
          //Print all student in a specific group
          case 2:
-            PrintWithGroup(f,AskInt("Enter The Group Number:"));
+            PrintWithGroup(f,AskInt(Questions[0]));
             break;
+
          //Print specific student via Id
          case 3:
-            AskString("Enter The Id:",Cans);
+            AskString(Questions[1],Cans);
             h=0;
             bi = searchId(f,Cans,&h);
             printf("\nb : %d,r : %d\n",bi,h);
@@ -602,9 +604,10 @@ int main(){
                display(block.val);
             }
             break;
+
          //Print specific student via First name
          case 4:
-            AskString("Enter First Name:",Cans);
+            AskString(Questions[2],Cans);
             h=0;
             bi = search(f,Cans,&h);
             if(bi==-1){
@@ -615,13 +618,14 @@ int main(){
                display(block.val);
             }
             break;
+
          //Create and Insert a new student
          case 5:
             header = Header(f);
-            AskString("Enter The First Name :",snew.Fname);
-            AskString("Enter The Last Name :",snew.Lname);
-            snew.group=AskInt("Enter Group Number:");
-            snew.Note=AskFloat("Enter Note:");
+            AskString(Questions[3],snew.Fname);
+            AskString(Questions[4],snew.Lname);
+            snew.group=AskInt(Questions[5]);
+            snew.Note=AskFloat(Questions[6]);
             snew.next=NULL;
             if(newF==0){
                snprintf(snew.id,STRING_MAX_LENGTH,"Id_%03d",header.curId);
@@ -631,9 +635,10 @@ int main(){
                initFirst(f,&snew);
             }
             break;
+         
          //Delete an Student via Id
          case 6:
-            AskString("Enter The Id:",Cans);
+            AskString(Questions[7],Cans);
             h=0;
             bi = searchId(f,Cans,&h);
             if(bi==-1){
@@ -642,6 +647,7 @@ int main(){
                Delete(f,Cans);
             }
             break;
+         
          //The Input is not valid
          default:
             printf("Invalid Option!!\n");
